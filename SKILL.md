@@ -55,6 +55,14 @@ For each processed video, three files are saved (all keyed by YouTube video ID):
 
 These files are plain JSON — read them directly whenever you need to look up a video's title, channel, description, upload date, or any other field listed above.
 
+## Summarising videos
+
+When asked to summarise a video, read the transcript file (`./transcripts/<video_id>.txt`) and the metadata file (`./metadata/<video_id>.json`) for context (title, channel, upload date).
+
+- **Write the summary in the same language as the transcript.** Do not translate.
+- Always include a **Key takeaways** section — a short bulleted list of the most important points from the video.
+- A good summary covers: the main topic/argument, key supporting points, any conclusions or recommendations made, and notable facts or figures mentioned.
+
 ## Setup (first time only)
 
 Run once to install dependencies:
