@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import os
 import sys
 
@@ -42,6 +43,22 @@ def get_channel_videos(channel_url, n):
     if "entries" in info:
         return [(e["id"], e.get("title", e["id"])) for e in info["entries"] if e]
     return [(info["id"], info.get("title", info["id"]))]
+
+
+METADATA_FIELDS = [
+    "id", "title", "description", "channel", "channel_id", "channel_url",
+    "uploader", "uploader_id", "upload_date", "duration", "view_count",
+    "like_count", "comment_count", "tags", "categories", "webpage_url",
+    "thumbnail",
+]
+
+
+def fetch_metadata(video_id):
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    ydl_opts = {"quiet": True, "no_warnings": True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+    return {k: info.get(k) for k in METADATA_FIELDS}
 
 
 def download_audio(video_id, output_dir):
@@ -97,6 +114,12 @@ def main():
         metavar="DIR",
         help="Output directory for transcripts (default: ./transcripts)",
     )
+    parser.add_argument(
+        "--metadata", "-m",
+        default="./metadata",
+        metavar="DIR",
+        help="Output directory for metadata JSON files (default: ./metadata)",
+    )
     args = parser.parse_args()
 
     channels = list(args.channel)
@@ -112,6 +135,7 @@ def main():
 
     os.makedirs(args.output, exist_ok=True)
     os.makedirs(args.transcripts, exist_ok=True)
+    os.makedirs(args.metadata, exist_ok=True)
 
     exit_code = 0
     model = None  # lazy-loaded on first transcription
@@ -125,6 +149,20 @@ def main():
             continue
 
         for video_id, _title in videos:
+            # --- metadata ---
+            metadata_path = os.path.join(args.metadata, f"{video_id}.json")
+            if os.path.exists(metadata_path):
+                print(f"METADATA_SKIPPED {video_id}", flush=True)
+            else:
+                try:
+                    meta = fetch_metadata(video_id)
+                    with open(metadata_path, "w") as f:
+                        json.dump(meta, f, indent=2, ensure_ascii=False)
+                    print(f"METADATA_SAVED {video_id}", flush=True)
+                except Exception as e:
+                    print(f"METADATA_ERROR {video_id} {e}", flush=True)
+                    exit_code = 1
+
             # --- audio ---
             try:
                 audio_path = find_existing(video_id, args.output)
