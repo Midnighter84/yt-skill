@@ -5,6 +5,16 @@ import sys
 
 import yt_dlp
 
+DEFAULT_FAVOURITES_FILE = os.path.expanduser("~/.yt-skill/favourites.txt")
+
+
+def load_favourites(path):
+    if not os.path.exists(path):
+        return []
+    with open(path) as f:
+        lines = f.readlines()
+    return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
+
 
 AUDIO_EXTENSIONS = ["m4a", "webm", "opus", "ogg", "mp3"]
 
@@ -50,9 +60,20 @@ def main():
     parser.add_argument(
         "--channel", "-c",
         action="append",
-        required=True,
+        default=[],
         metavar="URL",
         help="YouTube channel URL (repeat for multiple channels)",
+    )
+    parser.add_argument(
+        "--from-favourites", "-F",
+        action="store_true",
+        help="Download from all channels in the favourites file",
+    )
+    parser.add_argument(
+        "--favourites-file",
+        default=DEFAULT_FAVOURITES_FILE,
+        metavar="PATH",
+        help=f"Favourites file path (default: {DEFAULT_FAVOURITES_FILE})",
     )
     parser.add_argument(
         "--n", "-n",
@@ -69,11 +90,22 @@ def main():
     )
     args = parser.parse_args()
 
+    channels = list(args.channel)
+    if args.from_favourites:
+        fav_channels = load_favourites(args.favourites_file)
+        if not fav_channels:
+            print(f"ERROR no favourite channels found in {args.favourites_file}", flush=True)
+            sys.exit(1)
+        channels.extend(fav_channels)
+
+    if not channels:
+        parser.error("at least one --channel URL or --from-favourites is required")
+
     os.makedirs(args.output, exist_ok=True)
 
     exit_code = 0
 
-    for channel_url in args.channel:
+    for channel_url in channels:
         try:
             videos = get_channel_videos(channel_url, args.n)
         except Exception as e:
