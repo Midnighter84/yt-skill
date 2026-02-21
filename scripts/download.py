@@ -5,6 +5,9 @@ import sys
 
 import yt_dlp
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from transcribe import load_model, transcribe_audio
+
 DEFAULT_FAVOURITES_FILE = os.path.expanduser("~/.yt-skill/favourites.txt")
 
 
@@ -86,7 +89,13 @@ def main():
         "--output", "-o",
         default="./audio",
         metavar="DIR",
-        help="Output directory (default: ./audio)",
+        help="Output directory for audio files (default: ./audio)",
+    )
+    parser.add_argument(
+        "--transcripts", "-t",
+        default="./transcripts",
+        metavar="DIR",
+        help="Output directory for transcripts (default: ./transcripts)",
     )
     args = parser.parse_args()
 
@@ -102,8 +111,10 @@ def main():
         parser.error("at least one --channel URL or --from-favourites is required")
 
     os.makedirs(args.output, exist_ok=True)
+    os.makedirs(args.transcripts, exist_ok=True)
 
     exit_code = 0
+    model = None  # lazy-loaded on first transcription
 
     for channel_url in channels:
         try:
@@ -114,15 +125,36 @@ def main():
             continue
 
         for video_id, _title in videos:
+            # --- audio ---
             try:
-                if find_existing(video_id, args.output):
+                audio_path = find_existing(video_id, args.output)
+                if audio_path:
                     print(f"SKIPPED {video_id}", flush=True)
                 else:
                     download_audio(video_id, args.output)
                     print(f"DOWNLOADED {video_id}", flush=True)
+                    audio_path = find_existing(video_id, args.output)
             except Exception as e:
                 print(f"ERROR {video_id} {e}", flush=True)
                 exit_code = 1
+                continue
+
+            # --- transcription ---
+            transcript_path = os.path.join(args.transcripts, f"{video_id}.txt")
+            if os.path.exists(transcript_path):
+                print(f"TRANSCRIPT_SKIPPED {video_id}", flush=True)
+            elif audio_path is None:
+                print(f"TRANSCRIPT_ERROR {video_id} audio file not found", flush=True)
+                exit_code = 1
+            else:
+                try:
+                    if model is None:
+                        model = load_model()
+                    transcribe_audio(model, audio_path, transcript_path)
+                    print(f"TRANSCRIBED {video_id}", flush=True)
+                except Exception as e:
+                    print(f"TRANSCRIPT_ERROR {video_id} {e}", flush=True)
+                    exit_code = 1
 
     sys.exit(exit_code)
 

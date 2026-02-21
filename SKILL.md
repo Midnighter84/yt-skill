@@ -1,13 +1,14 @@
 ---
 name: youtube
 description: >
-  YouTube skill for downloading audio from YouTube channels or videos.
-  Use when asked to download, grab, save, or fetch audio from YouTube channels,
-  videos, or playlists. Triggers on phrases like "download audio from YouTube",
-  "grab latest videos from channel", "save audio from this YouTube channel",
-  "download from my favourite channels", "add channel to favourites",
-  or any YouTube channel/video audio retrieval request.
-version: 1.1.0
+  YouTube skill for downloading audio from YouTube channels or videos and
+  transcribing them with Whisper. Use when asked to download, grab, save,
+  fetch, or transcribe audio from YouTube channels, videos, or playlists.
+  Triggers on phrases like "download audio from YouTube", "grab latest videos
+  from channel", "save audio from this YouTube channel", "download from my
+  favourite channels", "add channel to favourites", "transcribe YouTube video",
+  or any YouTube channel/video audio retrieval or transcription request.
+version: 1.2.0
 metadata:
   openclaw:
     requires:
@@ -97,6 +98,7 @@ python3 <skill_dir>/scripts/download.py [options]
 | `--favourites-file PATH` | | Custom favourites file path | `~/.yt-skill/favourites.txt` |
 | `--n COUNT` | `-n` | Number of latest videos per channel | `5` |
 | `--output DIR` | `-o` | Directory to save audio files | `./audio` |
+| `--transcripts DIR` | `-t` | Directory to save transcripts | `./transcripts` |
 
 At least one of `--channel` or `--from-favourites` is required. Both can be combined.
 
@@ -108,15 +110,20 @@ At least one of `--channel` or `--from-favourites` is required. Both can be comb
 
 ### Output format
 
-Each video prints exactly one line:
+Each video prints two lines — one for audio, one for transcription:
 
 ```
-DOWNLOADED <video_id>   # audio was fetched and saved
-SKIPPED <video_id>      # file already exists on disk, skipped
-ERROR <video_id> <msg>  # download failed
+DOWNLOADED <video_id>            # audio was fetched and saved
+TRANSCRIBED <video_id>           # transcript was created
+
+SKIPPED <video_id>               # audio already exists
+TRANSCRIPT_SKIPPED <video_id>    # transcript already exists
+
+ERROR <video_id> <msg>           # audio download failed
+TRANSCRIPT_ERROR <video_id> <msg># transcription failed
 ```
 
-Exit code is `0` on full success, `1` if any video failed.
+Exit code is `0` on full success, `1` if any video or transcription failed.
 
 ### Examples
 
@@ -146,6 +153,54 @@ python3 <skill_dir>/scripts/download.py --from-favourites --channel https://www.
 
 ### Notes
 
-- Files are keyed by YouTube video ID, so the same video is never downloaded twice
+- Audio files are keyed by YouTube video ID, so the same video is never downloaded twice
+- Transcripts are saved as `<video_id>.txt` in the transcripts directory
+- Transcription is skipped if the transcript file already exists
 - No ffmpeg required — audio is downloaded in native M4A format from YouTube
 - If a channel has fewer than `--n` videos, all available videos are downloaded
+
+---
+
+## Feature: Transcribe Audio
+
+Transcribe already-downloaded audio files using `faster-whisper` (base model, language auto-detected).
+Transcripts are saved as `<video_id>.txt`, one segment per line.
+
+### Script
+
+```
+python3 <skill_dir>/scripts/transcribe.py [options]
+```
+
+### Options
+
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--audio-dir DIR` | `-a` | Directory containing audio files | `./audio` |
+| `--transcripts-dir DIR` | `-t` | Directory to save transcripts | `./transcripts` |
+| `--video-id ID` | `-v` | Transcribe a specific video ID only | all files |
+
+### Output format
+
+```
+TRANSCRIBED <video_id>           # transcript was created
+TRANSCRIPT_SKIPPED <video_id>    # transcript already exists
+TRANSCRIPT_ERROR <video_id> <msg># transcription failed
+```
+
+### Examples
+
+Transcribe all audio files that don't have a transcript yet:
+```
+python3 <skill_dir>/scripts/transcribe.py
+```
+
+Transcribe a specific video:
+```
+python3 <skill_dir>/scripts/transcribe.py --video-id dQw4w9WgXcQ
+```
+
+Transcribe from a custom audio directory:
+```
+python3 <skill_dir>/scripts/transcribe.py --audio-dir ~/music/youtube --transcripts-dir ~/music/transcripts
+```
